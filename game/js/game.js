@@ -53,25 +53,19 @@ var game = (function () {
     }
   },
 
-
   rotationRadians = new THREE.Vector3(0, 0, 0),
   rotationAngleX = null,
-	rotationAngleZ = null,
-
+  rotationAngleZ = null,
 
   gun = {
     bullets: [],
     bulletMeshes: [],
     fire: function(){
 
-
       var boxShape = new CANNON.Box(new CANNON.Vec3(4,4,4));
       var boxBody = new CANNON.Body({ mass: 1 });
       boxBody.addShape(boxShape);
       boxBody.position.copy(player.spaceship.position);
-      //boxBody.quaternion.copy(player.spaceship.quaternion);
-
-      var veloc = player.fireTarget.getWorldPosition();
 
       boxBody.position.y += 50;
 
@@ -79,7 +73,6 @@ var game = (function () {
       shootVelo = 1500;
 
       boxBody.velocity.set( shootDirection.x * shootVelo, shootDirection.y * shootVelo, shootDirection.z * shootVelo)
-
 
       world.add(boxBody);
       gun.bullets.push(boxBody);
@@ -98,23 +91,6 @@ var game = (function () {
       scene.add(bullet);
 
 
-    },
-    update: function(){
-
-      //player.spaceship.updateMatrix();
-
-      // for(var i=0; i !== gun.bullets.length; i++){
-      //   gun.bulletMeshes[i].position.copy(gun.bullets[i].position);
-      //   gun.bulletMeshes[i].quaternion.copy(gun.bullets[i].quaternion);
-      // }
-
-    },
-    shootDirection: function(targetVec){
-      // var vector = targetVec;
-      // targetVec.set(0,0,1);
-      // projector.unprojectVector(vector, camera);
-      // var ray = new THREE.Ray(sphereBody.position, vector.sub(sphereBody.position).normalize() );
-      // targetVec.copy(ray.direction);
     }
   },
 
@@ -127,6 +103,7 @@ var game = (function () {
     },
     spaceship: new THREE.Object3D(),
     fireTarget: new THREE.Object3D(),
+    spaceshipRotation: new THREE.Vector3(0, 0, 0),
     create: function(){
       var spaceshipGeo = new THREE.BoxGeometry( 50, 50, 50);
       spaceshipGeo.translate(0,50,0);
@@ -146,16 +123,20 @@ var game = (function () {
 
       player.fireTarget.add(fireTargetMesh);
       scene.add(player.fireTarget);
-
+      
+      rotationRadians.copy(player.spaceship.rotation);
+      
       //  Events
       document.addEventListener("keydown", onKeyDown, false);
-      //document.addEventListener("keyup", onKeyUp, false);
+      document.addEventListener("keyup", onKeyUp, false);
       document.addEventListener("mousemove", onMouseMove, false);
       document.addEventListener("click", onMouseClick, false);
+      
     },
     fire: function(){
 
       gun.fire();
+      
       TweenMax.to(player.spaceship.children[0].position,0.06,{z: player.spaceship.children[0].position.z - 5, onComplete: function(){
         TweenMax.to(player.spaceship.children[0].position,0.06,{z: 0});
       }});
@@ -165,6 +146,7 @@ var game = (function () {
       }});
     }
   },
+  
   level = {
     ground: new THREE.Object3D(),
     texture: null,
@@ -246,9 +228,9 @@ var game = (function () {
     WIDTH = window.innerWidth;
 
     camera.left = WIDTH / - 2;
-		camera.right = WIDTH / 2;
-		camera.top = HEIGHT / 2;
-		camera.bottom = HEIGHT / - 2;
+	camera.right = WIDTH / 2;
+	camera.top = HEIGHT / 2;
+	camera.bottom = HEIGHT / - 2;
 
     renderer.setSize(WIDTH, HEIGHT);
     camera.aspect = WIDTH / HEIGHT;
@@ -293,15 +275,38 @@ var game = (function () {
   }
 
 
+    function onKeyUp(event)
+    {
+        TweenMax.to(player.spaceship.children[0].rotation,0.3,{z: 0});
+    }
+      
     function onKeyDown(event)
     {
-
+        
       if(player.controlKeys[event.keyCode] == 'left'){
-        TweenMax.to(player.spaceship.position,2,{x: player.spaceship.position.x - 300, ease:Power2.easeOut });
+
+        TweenMax.to(player.spaceship.children[0].rotation,0.3,{z: -0.2});
+
+        TweenMax.to(player.spaceship.position,2,{
+            x: player.spaceship.position.x - 300,
+            ease:Power2.easeOut,
+            onComplete: function(){
+             TweenMax.to(player.spaceship.children[0].rotation,0.3,{z: 0});
+            }
+        });
       }
 
       if(player.controlKeys[event.keyCode] == 'right'){
-        TweenMax.to(player.spaceship.position,2,{x: player.spaceship.position.x + 300, ease:Power2.easeOut});
+          
+        TweenMax.to(player.spaceship.children[0].rotation,0.3,{z: 0.2});
+
+        TweenMax.to(player.spaceship.position,2,{
+            x: player.spaceship.position.x + 300,
+            ease:Power2.easeOut,
+            onComplete: function(){
+              TweenMax.to(player.spaceship.children[0].rotation,0.3,{z: 0});
+            }
+        });
       }
 
       if(player.controlKeys[event.keyCode] == 'forward'){
@@ -313,13 +318,15 @@ var game = (function () {
       }
 
     }
+    
+
 
     function onMouseMove(event)
     {
       event.preventDefault();
 
       mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-  		mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+  	  mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
 
       raycaster.setFromCamera( mouse, camera );
 
@@ -328,9 +335,8 @@ var game = (function () {
       if ( intersects.length > 0 ) {
         player.fireTarget.position.copy(intersects[ 0 ].point);
       }
-
+      
       player.spaceship.lookAt(player.fireTarget.getWorldPosition());
-
 
     }
 
