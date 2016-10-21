@@ -1,15 +1,19 @@
 {
-  "name": "space-invaders",
-  "version": "1.0.0",
-  "description": "Simple three.js space invaders game.",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "Erevald Kullolli",
-  "license": "MIT",
-  "devDependencies": {
-    "gulp": "^3.9.1",
-    "gulp-webserver": "^0.9.1"
-  }
+    "name": "space-invaders",
+    "version": "1.0.0",
+    "description": "Simple three.js space invaders game.",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "author": "Erevald Kullolli",
+    "license": "MIT",
+    "devDependencies": {
+        "gulp": "^3.9.1",
+        "gulp-webserver": "^0.9.1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Errvald/space-invaders.git"
+    }
 }

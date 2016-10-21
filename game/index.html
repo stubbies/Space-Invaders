@@ -23,8 +23,8 @@
     <script src="js/libs/three.js" charset="utf-8"></script>
     <script src="js/libs/dat.gui.min.js" charset="utf-8"></script>
     <script src="js/libs/detector.js" charset="utf-8"></script>
-    <script src="js/libs/OrbitControls.js" charset="utf-8"></script>
     <script src="js/libs/TweenMax.min.js"></script>
+
     <script src="js/game.js" charset="utf-8"></script>
 
 <script>
@@ -35,7 +35,9 @@ if (!Detector.webgl) {
     } else {
 
       window.addEventListener('load', function(){
-        game.init();
+        game.init({
+          helpers: true
+        });
       }, false);
     }
 </script>

@@ -7,7 +7,12 @@ var game = (function() {
             cyan: 0x38FDD9,
             fog: 0xe4e4e4,
             bg: 0xe4e4e4,
+            purple: 0x9c27b0,
             ambient: 0x808080
+        },
+
+        opts = {
+          helpers: false
         },
 
         // ThreeJS
@@ -61,44 +66,43 @@ var game = (function() {
         ObjectLoader = new THREE.ObjectLoader(),
 
         gun = {
+            shape: new CANNON.Box(new CANNON.Vec3(4, 4, 4)),
+            velocity: 1500,
             bullets: [],
             bulletMeshes: [],
             fire: function() {
 
-                var boxShape = new CANNON.Box(new CANNON.Vec3(4, 4, 4));
-                var boxBody = new CANNON.Body({
-                    mass: 1
-                });
-                boxBody.addShape(boxShape);
-                boxBody.position.copy(player.spaceship.position);
+                var body = new CANNON.Body({mass: 1});
 
-                boxBody.position.y += 50;
+                body.addShape(gun.shape);
+                body.position.copy(player.spaceship.position);
 
-                var shootDirection = player.spaceship.getWorldDirection(),
-                    shootVelo = 1500;
+                body.position.y += 50;
 
-                boxBody.velocity.set(shootDirection.x * shootVelo, shootDirection.y * shootVelo, shootDirection.z * shootVelo)
+                var shootDirection = player.spaceship.getWorldDirection();
 
-                world.add(boxBody);
-                gun.bullets.push(boxBody);
+                body.velocity.set(shootDirection.x * gun.velocity, shootDirection.y * gun.velocity, shootDirection.z * gun.velocity)
 
-                var material = new THREE.MeshLambertMaterial();
-                var bullet = new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), material);
+                world.add(body);
+                gun.bullets.push(body);
+
+                var bullet = new THREE.Mesh(new THREE.BoxGeometry(6, 6, 6), new THREE.MeshLambertMaterial({color: colors.purple}));
 
                 bullet.castShadow = true;
                 bullet.receiveShadow = true;
                 bullet.position.copy(player.spaceship.position);
-                bullet.quaternion.copy(player.spaceship.quaternion);
 
                 bullet.position.y += 50;
 
                 gun.bulletMeshes.push(bullet);
                 scene.add(bullet);
 
+                // Todo
+                // destroy bullet on sleep
+
 
             }
         },
-
         player = {
             controlKeys: {
                 87: "forward",
@@ -106,45 +110,52 @@ var game = (function() {
                 65: "left",
                 68: "right"
             },
+            mesh: null,
             spaceship: new THREE.Object3D(),
+            spaceshipMesh: null,
             fireTarget: new THREE.Object3D(),
             spaceshipRotation: new THREE.Vector3(0, 0, 0),
-            loadObj: function(){
-              ObjectLoader.load("assets/model.json", function(obj) {
-
-                var parent = new THREE.Object3D();
-
-                //obj.material.shading = 1;
-                console.log(obj.material);
-
-                obj.material.color.setHex( colors.green );
-                obj.scale.set(25,25,25);
-                obj.translateZ( 50 );
-                obj.rotation.set(Math.PI / 2,Math.PI / 1,0 );
-
-                parent.add(obj);
-
-                modelMesh = parent;
-
-                // scene.add(obj);
-
-                player.create();
-              });
+            loadObj: function() {
+                // Create player on json load
+                ObjectLoader.load("assets/model.json", function(obj) {
+                    var m = new THREE.Matrix4();
+                    m.makeRotationY(Math.PI / 1);
+                    m.makeRotationX(Math.PI / 2);
+                    obj.geometry.applyMatrix(m);
+                    player.mesh = obj.geometry;
+                    player.create();
+                    enemies.create();
+                });
             },
             create: function() {
 
-                var material = new THREE.MeshLambertMaterial({
-                    color: colors.green
+                var material = new THREE.MeshPhongMaterial({
+                    color: colors.green,
+                    shading: THREE.FlatShading
                 });
 
-                var spaceshipMesh = modelMesh;
-                spaceshipMesh.castShadow = true;
-                player.spaceship.add(spaceshipMesh);
+                var spaceshipMesh = new THREE.Mesh(player.mesh, material);
 
+                spaceshipMesh.scale.set(25, 25, 25);
+                spaceshipMesh.position.set(0, 50, 0);
+                spaceshipMesh.castShadow = true;
+                spaceshipMesh.name = "playerMesh";
+
+                player.spaceship.add(spaceshipMesh);
+                player.spaceshipMesh = spaceshipMesh;
                 scene.add(player.spaceship);
 
                 var fireTargetGeo = new THREE.BoxGeometry(20, 20, 20);
-                var fireTargetMesh = new THREE.Mesh(fireTargetGeo, material);
+                var fireTargetMesh = new THREE.Mesh(fireTargetGeo);
+                fireTargetMesh.visible = false;
+
+                if(opts.helpers){
+                  fireTargetMesh.visible = true;
+
+                  var axisHelper = new THREE.AxisHelper(100);
+                  axisHelper.position.y = 50;
+                  player.spaceship.add(axisHelper);
+                }
 
                 player.fireTarget.add(fireTargetMesh);
                 scene.add(player.fireTarget);
@@ -162,23 +173,76 @@ var game = (function() {
 
                 gun.fire();
 
-                TweenMax.to(player.spaceship.children[0].position, 0.06, {
-                    z: player.spaceship.children[0].position.z - 5,
+                TweenMax.to(player.spaceshipMesh.position, 0.06, {
+                    z: player.spaceshipMesh.position.z - 5,
                     onComplete: function() {
-                        TweenMax.to(player.spaceship.children[0].position, 0.06, {
+                        TweenMax.to(player.spaceshipMesh.position, 0.06, {
                             z: 0
                         });
                     }
                 });
 
-                TweenMax.to(player.spaceship.children[0].rotation, 0.06, {
-                    x: player.spaceship.children[0].rotation.x - .1,
+                TweenMax.to(player.spaceshipMesh.rotation, 0.06, {
+                    x: player.spaceshipMesh.rotation.x - .15,
                     onComplete: function() {
-                        TweenMax.to(player.spaceship.children[0].rotation, 0.06, {
-                            x: 0
+                        TweenMax.to(player.spaceshipMesh.rotation, 0.06, {
+                            x: player.spaceshipMesh.rotation.x + .15
                         });
                     }
                 });
+            }
+        },
+
+        enemies = {
+            group: new THREE.Group(),
+            formations: [
+                [0, 1, 2, 3],
+                [0.5, 1.5, 2.5],
+                [1.5]
+            ],
+            create: function() {
+
+                var zPos = 0,
+                    xPos = 0,
+                    distance = 150,
+                    offset = (enemies.formations[0].length * distance) / 2;
+
+                var material = new THREE.MeshStandardMaterial({
+                    color: colors.purple,
+                    shading: THREE.FlatShading,
+                    roughness: 0.28,
+                    metalness: 0.16
+                });
+
+                for (var col in enemies.formations) {
+
+                    // Set Z position
+                    zPos = col * distance;
+                    for (var row in enemies.formations[col]) {
+
+                        xPos = enemies.formations[col][row] * distance;
+
+                        var enemy = new THREE.Mesh(player.mesh, material);
+                        enemy.scale.set(15, 15, 15);
+                        enemy.position.set(0, 50, 0);
+                        //enemy.rotation.set(Math.PI / 2, Math.PI / 1, 0);
+                        enemy.castShadow = true;
+                      //  enemy.material.shading = THREE.FlatShading;
+
+                        enemy.position.x = xPos;
+                        enemy.position.z = zPos;
+                        enemy.name = "enemy_" + col + row;
+                        enemies.group.add(enemy);
+
+                    }
+
+                }
+
+                enemies.group.position.z = -400;
+                enemies.group.position.x -= offset-(150/2);
+
+                scene.add(enemies.group);
+
             }
         },
 
@@ -202,21 +266,35 @@ var game = (function() {
                 level.ground.receiveShadow = true;
                 scene.add(level.ground);
 
+                level.asteroids();
+
 
             },
             update: function() {
                 level.texture.offset.y += .02;
+            },
+            asteroids: function(){
+              var floorMat = new THREE.MeshLambertMaterial({
+                  color: 0xe4e4e4
+              });
+              var n1 = new THREE.Mesh(new THREE.OctahedronGeometry(15,1),floorMat);
+
+              scene.add(n1);
             }
         };
 
     var _game = {
-        init: init
+        init: init,
+        destroy: destroy
     }
 
     return _game;
 
     // Methods
-    function init() {
+    function init(options) {
+
+        Object.assign(opts, options);
+
         scene = new THREE.Scene();
 
         // Fog
@@ -237,8 +315,6 @@ var game = (function() {
 
         window.addEventListener('resize', handleWindowResize, false);
 
-        //var controls = new THREE.OrbitControls( camera, renderer.domElement );
-
         document.body.appendChild(renderer.domElement);
 
         level.create();
@@ -249,6 +325,9 @@ var game = (function() {
 
 
 
+    }
+
+    function destroy() {
     }
 
     function render() {
@@ -291,22 +370,18 @@ var game = (function() {
         light.shadow.bias = -0.0002;
 
         light.position.set(0, 700, 0);
-        //light.rotation.set(1, 0, 0);
-         light.target.position.set(300, 0, 0);
-         light.target.updateMatrixWorld();
-
-         console.log(light.shadow);
-
-        //.position.set(6000, 0, 3000);
+        light.target.position.set(300, 0, 0);
+        light.target.updateMatrixWorld();
 
         light.shadow.darkness = 0.1;
 
-        var lightShadowHelper = new THREE.CameraHelper( light.shadow.camera );
-        scene.add(lightShadowHelper);
+        if(opts.helpers){
+          var lightShadowHelper = new THREE.CameraHelper(light.shadow.camera);
+          scene.add(lightShadowHelper);
 
-
-        var dirHelper = new THREE.DirectionalLightHelper(light,50);
-        scene.add(dirHelper);
+          var dirHelper = new THREE.DirectionalLightHelper(light, 50);
+          scene.add(dirHelper);
+        }
 
         scene.add(light);
 
@@ -322,13 +397,12 @@ var game = (function() {
         camera.position.x = 200;
         camera.position.y = 250;
         camera.position.z = 200;
-
         camera.lookAt(scene.position);
     }
 
 
     function onKeyUp(event) {
-        TweenMax.to(player.spaceship.children[0].rotation, 0.3, {
+        TweenMax.to(player.spaceshipMesh.rotation, 0.3, {
             z: 0
         });
     }
@@ -336,16 +410,14 @@ var game = (function() {
     function onKeyDown(event) {
 
         if (player.controlKeys[event.keyCode] == 'left') {
-
-            TweenMax.to(player.spaceship.children[0].rotation, 0.3, {
-                z: -0.2
+            TweenMax.to(player.spaceshipMesh.rotation, 0.3, {
+                z: -.4
             });
-
             TweenMax.to(player.spaceship.position, 2, {
                 x: player.spaceship.position.x - 300,
                 ease: Power2.easeOut,
                 onComplete: function() {
-                    TweenMax.to(player.spaceship.children[0].rotation, 0.3, {
+                    TweenMax.to(player.spaceshipMesh.rotation, 0.3, {
                         z: 0
                     });
                 }
@@ -353,16 +425,14 @@ var game = (function() {
         }
 
         if (player.controlKeys[event.keyCode] == 'right') {
-
-            TweenMax.to(player.spaceship.children[0].rotation, 0.3, {
-                z: 0.2
+            TweenMax.to(player.spaceshipMesh.rotation, 0.3, {
+                z: +.4
             });
-
             TweenMax.to(player.spaceship.position, 2, {
                 x: player.spaceship.position.x + 300,
                 ease: Power2.easeOut,
                 onComplete: function() {
-                    TweenMax.to(player.spaceship.children[0].rotation, 0.3, {
+                    TweenMax.to(player.spaceshipMesh.rotation, 0.3, {
                         z: 0
                     });
                 }
