@@ -295,7 +295,8 @@ var game = (function() {
                 color: colors.gray,
                 shading: THREE.FlatShading,
                 roughness: 0.28,
-                metalness: 0.16
+                metalness: 0.16,
+                emissive: 0x9d9d9d
             }),
             columns: new THREE.Group(),
 

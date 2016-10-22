@@ -1,7 +1,7 @@
 {
-    "name": "space-invaders",
+    "name": "Space Invaders",
     "version": "1.0.0",
-    "description": "Simple three.js space invaders game.",
+    "description": "Three.js Isometric game",
     "main": "index.js",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1"
@@ -14,6 +14,6 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/Errvald/space-invaders.git"
+        "url": "https://github.com/Errvald/Space-Invaders.git"
     }
 }
