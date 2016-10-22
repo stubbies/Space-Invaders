@@ -172,6 +172,11 @@ var game = (function() {
                     player.spaceship.add(axisHelper);
                 }
 
+                player.spaceship.position.z = 1500;
+                player.spaceship.rotation.y = Math.PI / 1;
+
+                TweenMax.to(player.spaceship.position, 2, {z: 500,ease: Power2.easeOut});
+
                 player.fireTarget.add(fireTargetMesh);
                 scene.add(player.fireTarget);
 
@@ -239,21 +244,23 @@ var game = (function() {
 
                         var enemy = new THREE.Mesh(player.mesh, material);
                         enemy.scale.set(15, 15, 15);
-                        enemy.position.set(0, 50, 0);
-                        //enemy.rotation.set(Math.PI / 2, Math.PI / 1, 0);
+                        enemy.position.set(0, -20, 0);
+                        enemy.rotation.z = -1;
                         enemy.castShadow = true;
-                        //  enemy.material.shading = THREE.FlatShading;
-
                         enemy.position.x = xPos;
                         enemy.position.z = zPos;
                         enemy.name = "enemy_" + col + row;
+
+                        TweenMax.to(enemy.position, 0.5, {y: 50, delay:row*0.2});
+                        TweenMax.to(enemy.rotation, 0.5, {z: 0});
+
                         enemies.group.add(enemy);
 
                     }
 
                 }
 
-                enemies.group.position.z = -400;
+                enemies.group.position.z = ``-400;
                 enemies.group.position.x -= offset - (150 / 2);
 
                 scene.add(enemies.group);
@@ -295,8 +302,7 @@ var game = (function() {
                 color: colors.gray,
                 shading: THREE.FlatShading,
                 roughness: 0.28,
-                metalness: 0.16,
-                emissive: 0x9d9d9d
+                metalness: 0.16
             }),
             columns: new THREE.Group(),
 
