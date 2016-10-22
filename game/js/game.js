@@ -1,6 +1,7 @@
 var game = (function() {
 
-    var colors = {
+    var
+        colors = {
             black: 0x000000,
             white: 0xffffff,
             green: 0x0fdb8c,
@@ -8,22 +9,21 @@ var game = (function() {
             fog: 0xe4e4e4,
             bg: 0xe4e4e4,
             purple: 0x9c27b0,
-            ambient: 0x808080
+            ambient: 0x808080,
+            gray: 0x929292
         },
 
         opts = {
-          helpers: false
+            helpers: false
         },
 
         // ThreeJS
-        camera, scene, renderer,
+        camera, scene, renderer, world,
         mouse = new THREE.Vector2(),
         raycaster = new THREE.Raycaster(),
 
         WIDTH = window.innerWidth,
         HEIGHT = window.innerHeight,
-
-        world,
 
         cannon = {
             timeStep: 1 / 60,
@@ -34,6 +34,7 @@ var game = (function() {
                 world.broadphase = new CANNON.NaiveBroadphase();
                 world.gravity.set(0, -1000, 0);
                 world.solver.tolerance = 0.001;
+                world.allowSleep = true;
 
                 // Ground plane
                 var plane = new CANNON.Plane();
@@ -47,6 +48,7 @@ var game = (function() {
             },
             update: function() {
                 world.step(cannon.timeStep);
+                gun.destroyBullets();
 
                 player.spaceship.updateMatrix();
 
@@ -58,25 +60,35 @@ var game = (function() {
             }
         },
 
-        rotationRadians = new THREE.Vector3(0, 0, 0),
-        rotationAngleX = null,
-        rotationAngleZ = null,
-
-        modelMesh = null,
-        ObjectLoader = new THREE.ObjectLoader(),
-
         gun = {
             shape: new CANNON.Box(new CANNON.Vec3(4, 4, 4)),
             velocity: 1500,
+            geo: new THREE.BoxGeometry(6, 6, 6),
+            material: new THREE.MeshLambertMaterial({
+                color: colors.purple
+            }),
             bullets: [],
             bulletMeshes: [],
+            deadBullets: [],
+            destroyBullets: function() {
+                gun.deadBullets.forEach(function(bullet) {
+                    // Remove Cannon body
+                    world.removeBody(bullet[0]);
+                    // Remove THREE mesh
+                    scene.remove(bullet[1]);
+                });
+            },
             fire: function() {
 
-                var body = new CANNON.Body({mass: 1});
+                var body = new CANNON.Body({
+                    mass: 1,
+                    allowSleep: true,
+                    sleepSpeedLimit: 2.1,
+                    sleepTimeLimit: 1
+                });
 
                 body.addShape(gun.shape);
                 body.position.copy(player.spaceship.position);
-
                 body.position.y += 50;
 
                 var shootDirection = player.spaceship.getWorldDirection();
@@ -86,7 +98,7 @@ var game = (function() {
                 world.add(body);
                 gun.bullets.push(body);
 
-                var bullet = new THREE.Mesh(new THREE.BoxGeometry(6, 6, 6), new THREE.MeshLambertMaterial({color: colors.purple}));
+                var bullet = new THREE.Mesh(gun.geo, gun.material);
 
                 bullet.castShadow = true;
                 bullet.receiveShadow = true;
@@ -97,12 +109,14 @@ var game = (function() {
                 gun.bulletMeshes.push(bullet);
                 scene.add(bullet);
 
-                // Todo
-                // destroy bullet on sleep
-
+                // Destroy bullet when asleep
+                body.addEventListener("sleep", function(event) {
+                    gun.deadBullets.push([body, bullet]);
+                });
 
             }
         },
+
         player = {
             controlKeys: {
                 87: "forward",
@@ -117,6 +131,7 @@ var game = (function() {
             spaceshipRotation: new THREE.Vector3(0, 0, 0),
             loadObj: function() {
                 // Create player on json load
+                var ObjectLoader = new THREE.ObjectLoader();
                 ObjectLoader.load("assets/model.json", function(obj) {
                     var m = new THREE.Matrix4();
                     m.makeRotationY(Math.PI / 1);
@@ -149,18 +164,18 @@ var game = (function() {
                 var fireTargetMesh = new THREE.Mesh(fireTargetGeo);
                 fireTargetMesh.visible = false;
 
-                if(opts.helpers){
-                  fireTargetMesh.visible = true;
+                if (opts.helpers) {
+                    fireTargetMesh.visible = true;
 
-                  var axisHelper = new THREE.AxisHelper(100);
-                  axisHelper.position.y = 50;
-                  player.spaceship.add(axisHelper);
+                    var axisHelper = new THREE.AxisHelper(100);
+                    axisHelper.position.y = 50;
+                    player.spaceship.add(axisHelper);
                 }
 
                 player.fireTarget.add(fireTargetMesh);
                 scene.add(player.fireTarget);
 
-                rotationRadians.copy(player.spaceship.rotation);
+                //rotationRadians.copy(player.spaceship.rotation);
 
                 //  Events
                 document.addEventListener("keydown", onKeyDown, false);
@@ -227,7 +242,7 @@ var game = (function() {
                         enemy.position.set(0, 50, 0);
                         //enemy.rotation.set(Math.PI / 2, Math.PI / 1, 0);
                         enemy.castShadow = true;
-                      //  enemy.material.shading = THREE.FlatShading;
+                        //  enemy.material.shading = THREE.FlatShading;
 
                         enemy.position.x = xPos;
                         enemy.position.z = zPos;
@@ -239,7 +254,7 @@ var game = (function() {
                 }
 
                 enemies.group.position.z = -400;
-                enemies.group.position.x -= offset-(150/2);
+                enemies.group.position.x -= offset - (150 / 2);
 
                 scene.add(enemies.group);
 
@@ -259,36 +274,159 @@ var game = (function() {
 
                 var floorMat = new THREE.MeshLambertMaterial({
                     color: 0xe4e4e4,
-                    map: level.texture
+                    map: level.texture,
+                    emissive: 0x9d9d9d
                 });
 
                 level.ground = new THREE.Mesh(solidGroundGeo, floorMat);
                 level.ground.receiveShadow = true;
                 scene.add(level.ground);
 
-                level.asteroids();
-
+                asteroids.init();
 
             },
             update: function() {
                 level.texture.offset.y += .02;
-            },
-            asteroids: function(){
-              var floorMat = new THREE.MeshLambertMaterial({
-                  color: 0xe4e4e4
-              });
-              var n1 = new THREE.Mesh(new THREE.OctahedronGeometry(15,1),floorMat);
-
-              scene.add(n1);
             }
+        },
+
+        asteroids = {
+            material: new THREE.MeshStandardMaterial({
+                color: colors.gray,
+                shading: THREE.FlatShading,
+                roughness: 0.28,
+                metalness: 0.16
+            }),
+            columns: new THREE.Group(),
+
+            update: function() {},
+
+            init: function() {
+
+                asteroids.createBlock({
+                    x: 700,
+                    y: 150,
+                    z: -1100
+                });
+                asteroids.createBlock({
+                    x: -700,
+                    y: 150,
+                    z: -1100
+                });
+
+                scene.add(asteroids.columns);
+
+            },
+
+            createBlock: function(pos) {
+
+                var
+                    column = new THREE.Group(),
+                    scale = 1,
+                    mesh,
+                    block;
+
+                for (var i = 1; i < 4; i++) {
+
+                    block = new THREE.Group();
+
+                    for (var a = 0; a < 20; a++) {
+                        mesh = new THREE.Mesh(new THREE.OctahedronGeometry(15, 1), asteroids.material);
+                        mesh.position.set(Math.random() * 300, Math.random() * 100, Math.random() * 500);
+                        scale = Math.random() * 1.5;
+                        mesh.scale.set(scale, scale, scale);
+
+                        TweenMax.from(mesh.position, 0, {
+                            x: 0,
+                            yoyo: true,
+                            repeat: -1,
+                            ease: Linear.easeNone
+                        });
+                        TweenMax.to(mesh.position, Math.floor((Math.random() * 12) + 9), {
+                            x: Math.random() * 70,
+                            yoyo: true,
+                            repeat: -1,
+                            ease: Linear.easeNone
+                        });
+
+                        block.add(mesh);
+                    }
+
+                    block.position.z += i * 500;
+                    column.add(block);
+                }
+
+                column.position.set(pos.x, pos.y, pos.z);
+                asteroids.columns.add(column);
+
+            }
+
+
+            // var block1 = new THREE.Group();
+            // var block2 = new THREE.Group();
+            // var block3 = new THREE.Group();
+            //
+            // var blockHelpers = new THREE.Group();
+            //
+            // var parentBlock = new THREE.Group();
+            // parentBlock.position.y = 50;
+            //
+            // var mesh;
+            //
+            // var material = new THREE.MeshStandardMaterial({
+            //     color: colors.purple,
+            //     shading: THREE.FlatShading,
+            //     roughness: 0.28,
+            //     metalness: 0.16
+            // });
+            //
+            // var scale = 1;
+
+            // for (var a = 0; a < 10; a++) {
+            //   mesh = new THREE.Mesh(new THREE.OctahedronGeometry(15, 1), material);
+            //   mesh.position.set(Math.random()*200,Math.random()*200,Math.random()*200);
+            //   scale = Math.random()*1.2;
+            //   mesh.scale.set(scale,scale,scale);
+            //
+            //   TweenMax.from(mesh.position, 0, { x:0, yoyo:true, repeat:-1, ease:Linear.easeNone } );
+            //   TweenMax.to(mesh.position, 1, { x:100, yoyo:true, repeat:-1, ease:Linear.easeNone } );
+            //
+            //   block1.add(mesh);
+            // }
+
+            // block 1
+            // parentBlock.add(block1);
+            // blockHelpers.add( new THREE.BoxHelper( block1 ) );
+
+
+            //var h2 = new THREE.BoxHelper( block2 );
+            // block2.copy(block1);
+            // block2.position.z = 200;
+            // parentBlock.add(block2);
+            // blockHelpers.add( new THREE.BoxHelper( block2 ) );
+
+            // block 3
+            // block3.copy(block1);
+            // block3.position.z = block2.position.z+200;
+            // parentBlock.add(block3);
+            // blockHelpers.add( new THREE.BoxHelper( block3 ) );
+
+
+            //  parentBlock.position.y = 50;
+
+
+            // scene.add(blockHelpers);
+            // scene.add(parentBlock);
+
+            //TweenMax.to(parentBlock.position, 4, { z:1000, ease:Linear.easeNone } );
         };
 
     var _game = {
-        init: init,
-        destroy: destroy
+        init: init
     }
 
     return _game;
+
 
     // Methods
     function init(options) {
@@ -323,11 +461,6 @@ var game = (function() {
 
         render();
 
-
-
-    }
-
-    function destroy() {
     }
 
     function render() {
@@ -356,31 +489,33 @@ var game = (function() {
 
     function lights() {
         // Ambient light
-        scene.add(new THREE.AmbientLight(colors.ambient, 0.7));
+        scene.add(new THREE.AmbientLight(colors.ambient, 1));
 
         // Directional Light
-        var light = new THREE.DirectionalLight(0xffffff, 1);
+        var light = new THREE.DirectionalLight(0xffffff, 1.2);
         light.castShadow = true;
-        light.shadow.camera.near = 350;
-        light.shadow.camera.far = 1050;
-        light.shadow.camera.left = -1000;
-        light.shadow.camera.right = 1000;
-        light.shadow.camera.top = 1200;
+        light.shadow.radius = 0.5;
+        light.shadow.camera.near = 250;
+        light.shadow.camera.far = 1550;
+        light.shadow.camera.left = -1200;
+        light.shadow.camera.right = 1200;
+        light.shadow.camera.top = 500;
         light.shadow.camera.bottom = -1200;
-        light.shadow.bias = -0.0002;
 
-        light.position.set(0, 700, 0);
-        light.target.position.set(300, 0, 0);
+        light.shadow.mapSize.width = 2024;
+        light.shadow.mapSize.height = 2024;
+
+        light.position.set(-400, 800, 0);
+        light.target.position.set(500, 0, -100);
         light.target.updateMatrixWorld();
 
-        light.shadow.darkness = 0.1;
 
-        if(opts.helpers){
-          var lightShadowHelper = new THREE.CameraHelper(light.shadow.camera);
-          scene.add(lightShadowHelper);
+        if (opts.helpers) {
+            var lightShadowHelper = new THREE.CameraHelper(light.shadow.camera);
+            scene.add(lightShadowHelper);
 
-          var dirHelper = new THREE.DirectionalLightHelper(light, 50);
-          scene.add(dirHelper);
+            var dirHelper = new THREE.DirectionalLightHelper(light, 50);
+            scene.add(dirHelper);
         }
 
         scene.add(light);
