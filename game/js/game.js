@@ -10,7 +10,15 @@ var game = (function() {
             bg: 0xe4e4e4,
             purple: 0x9c27b0,
             ambient: 0x808080,
-            gray: 0x929292
+            gray: 0x8c8c8c,
+            player: {
+                color: 0x989898,
+                emissive: 0x1f1f1f
+            },
+            asteroids: {
+                color: 0x686868,
+                emissive: 0x2e2e2e
+            }
         },
 
         opts = {
@@ -48,15 +56,96 @@ var game = (function() {
             },
             update: function() {
                 world.step(cannon.timeStep);
-                gun.destroyBullets();
+                gun.destroy();
+                enemies.destroy();
+                explosion.destroy();
 
                 player.spaceship.updateMatrix();
 
+                // update bullet positions
                 for (var i = 0; i !== gun.bullets.length; i++) {
                     gun.bulletMeshes[i].position.copy(gun.bullets[i].position);
                     gun.bulletMeshes[i].quaternion.copy(gun.bullets[i].quaternion);
                 }
 
+                // update enemy positions
+                for (var i = 0; i !== enemies.bodies.length; i++) {
+                    enemies.group.children[i].position.z += 0.5;
+                    enemies.bodies[i].position.copy(enemies.group.children[i].position);
+                    enemies.bodies[i].quaternion.copy(enemies.group.children[i].quaternion);
+                }
+
+                // Update explosions
+                for (var i = 0; i < explosion.meshes.length; i++) {
+                    explosion.meshes[i][1].position.copy(explosion.meshes[i][0].position);
+                    explosion.meshes[i][1].quaternion.copy(explosion.meshes[i][0].quaternion);
+                }
+
+            }
+        },
+
+        explosion = {
+            shape: new CANNON.Box(new CANNON.Vec3(4, 4, 4)),
+            geo: new THREE.BoxGeometry(8, 8, 8),
+            material: new THREE.MeshLambertMaterial({
+                color: colors.purple
+            }),
+            meshes: [],
+            destroyed: [],
+            group: new THREE.Object3D(),
+            trigger: function(position) {
+
+                sounds.explosionSound.play();
+
+                var body, mesh;
+
+                for (var i = 0; i < 4; i++) {
+
+
+                    body = new CANNON.Body({
+                        mass: 1
+                    });
+
+                    body.addShape(explosion.shape);
+                    body.position.copy(position);
+                    body.position.x -= 12 * i;
+                    body.position.y -= 12 * i;
+                    body.position.z -= 12 * i;
+                    body.velocity.set(gun.shootDirection.x * (Math.random() * 350), Math.random() * 400, gun.shootDirection.z * (Math.random() * 350));
+                    world.add(body);
+
+
+                    mesh = new THREE.Mesh(explosion.geo, explosion.material);
+                    mesh.castShadow = true;
+                    mesh.position.copy(body.position);
+                    explosion.group.add(mesh);
+                    explosion.meshes.push([body, mesh]);
+
+                    TweenMax.to(mesh.scale, 3, {
+                        x: 0.1,
+                        y: 0.1,
+                        z: 0.1
+                    });
+
+                }
+
+                var _destroy = setTimeout(function() {
+                    explosion.destroyed = [0, 1, 2, 3];
+                    clearTimeout(_destroy);
+                }, 3000);
+
+                scene.add(explosion.group);
+
+            },
+            destroy: function() {
+                if (explosion.destroyed.length) {
+                    explosion.destroyed.forEach(function(i) {
+                        world.removeBody(explosion.meshes[i][0]);
+                        explosion.group.remove(explosion.meshes[i][1]);
+                    });
+                    explosion.meshes.splice(0, 4);
+                    explosion.destroyed.splice(0, 4);
+                }
             }
         },
 
@@ -69,16 +158,22 @@ var game = (function() {
             }),
             bullets: [],
             bulletMeshes: [],
-            deadBullets: [],
-            destroyBullets: function() {
-                gun.deadBullets.forEach(function(bullet) {
-                    // Remove Cannon body
-                    world.removeBody(bullet[0]);
-                    // Remove THREE mesh
-                    scene.remove(bullet[1]);
-                });
+            destroyed: [],
+            shootDirection: null,
+            destroy: function() {
+
+                if (gun.destroyed.length) {
+                    gun.destroyed.forEach(function(bullet, index) {
+                        world.removeBody(bullet[0]);
+                        scene.remove(bullet[1]);
+                        gun.destroyed.splice(index, 1);
+                    });
+                }
+
             },
             fire: function() {
+
+                sounds.shootSound.play();
 
                 var body = new CANNON.Body({
                     mass: 1,
@@ -91,9 +186,9 @@ var game = (function() {
                 body.position.copy(player.spaceship.position);
                 body.position.y += 50;
 
-                var shootDirection = player.spaceship.getWorldDirection();
+                gun.shootDirection = player.spaceship.getWorldDirection();
 
-                body.velocity.set(shootDirection.x * gun.velocity, shootDirection.y * gun.velocity, shootDirection.z * gun.velocity)
+                body.velocity.set(gun.shootDirection.x * gun.velocity, gun.shootDirection.y * gun.velocity, gun.shootDirection.z * gun.velocity)
 
                 world.add(body);
                 gun.bullets.push(body);
@@ -109,10 +204,12 @@ var game = (function() {
                 gun.bulletMeshes.push(bullet);
                 scene.add(bullet);
 
-                // Destroy bullet when asleep
-                body.addEventListener("sleep", function(event) {
-                    gun.deadBullets.push([body, bullet]);
-                });
+                var _sleepEvent = function(e) {
+                    gun.destroyed.push([body, bullet]);
+                    body.removeEventListener("sleep", _sleepEvent);
+                }
+
+                body.addEventListener("sleep", _sleepEvent);
 
             }
         },
@@ -125,6 +222,7 @@ var game = (function() {
                 68: "right"
             },
             mesh: null,
+            physMesh: new THREE.BoxGeometry(40, 40, 40),
             spaceship: new THREE.Object3D(),
             spaceshipMesh: null,
             fireTarget: new THREE.Object3D(),
@@ -145,8 +243,10 @@ var game = (function() {
             create: function() {
 
                 var material = new THREE.MeshPhongMaterial({
-                    color: colors.green,
-                    shading: THREE.FlatShading
+                    color: colors.player.color,
+                    emissive: colors.player.emissive,
+                    shading: THREE.FlatShading,
+                    shininess: 0
                 });
 
                 var spaceshipMesh = new THREE.Mesh(player.mesh, material);
@@ -175,19 +275,23 @@ var game = (function() {
                 player.spaceship.position.z = 1500;
                 player.spaceship.rotation.y = Math.PI / 1;
 
-                TweenMax.to(player.spaceship.position, 2, {z: 500,ease: Power2.easeOut});
+                TweenMax.to(player.spaceship.position, 1.2, {
+                    z: 500,
+                    ease: Power2.easeOut,
+                    onComplete: function() {
+                        player.events();
+                    }
+                });
 
                 player.fireTarget.add(fireTargetMesh);
                 scene.add(player.fireTarget);
 
-                //rotationRadians.copy(player.spaceship.rotation);
-
-                //  Events
+            },
+            events: function() {
                 document.addEventListener("keydown", onKeyDown, false);
                 document.addEventListener("keyup", onKeyUp, false);
                 document.addEventListener("mousemove", onMouseMove, false);
                 document.addEventListener("click", onMouseClick, false);
-
             },
             fire: function() {
 
@@ -214,25 +318,55 @@ var game = (function() {
         },
 
         enemies = {
-            group: new THREE.Group(),
+            bodies: [],
+            group: new THREE.Object3D(),
             formations: [
                 [0, 1, 2, 3],
                 [0.5, 1.5, 2.5],
                 [1.5]
             ],
+            destroyed: [],
+            destroy: function() {
+                if (enemies.destroyed.length) {
+                    enemies.destroyed.forEach(function(body, index) {
+                        world.removeBody(body);
+                        enemies.destroyed.splice(index, 1);
+                    });
+                }
+            },
             create: function() {
 
                 var zPos = 0,
                     xPos = 0,
                     distance = 150,
-                    offset = (enemies.formations[0].length * distance) / 2;
+                    offset = (enemies.formations[0].length * distance) / 2,
+                    mesh,
+                    body,
+                    shape = new CANNON.Box(new CANNON.Vec3(20, 20, 20));
 
                 var material = new THREE.MeshStandardMaterial({
                     color: colors.purple,
                     shading: THREE.FlatShading,
-                    roughness: 0.28,
+                    roughness: 1,
                     metalness: 0.16
                 });
+
+                var killedMesh = null;
+
+                var _collideEvent = function(e) {
+                    e.target.removeEventListener("collide", _collideEvent);
+                    enemies.bodies.splice(e.target.index - 1, 1);
+                    killedMesh = enemies.group.getObjectById(e.target.meshID);
+                    TweenMax.killTweensOf(killedMesh.position);
+                    enemies.group.remove(killedMesh);
+                    enemies.destroyed.push(e.target);
+                    explosion.trigger(e.target.position);
+
+                }
+
+                var _fireEvent = function() {
+
+                }
 
                 for (var col in enemies.formations) {
 
@@ -241,29 +375,94 @@ var game = (function() {
                     for (var row in enemies.formations[col]) {
 
                         xPos = enemies.formations[col][row] * distance;
+                        xPos -= offset - (150 / 2);
 
-                        var enemy = new THREE.Mesh(player.mesh, material);
-                        enemy.scale.set(15, 15, 15);
-                        enemy.position.set(0, -20, 0);
-                        enemy.rotation.z = -1;
-                        enemy.castShadow = true;
-                        enemy.position.x = xPos;
-                        enemy.position.z = zPos;
-                        enemy.name = "enemy_" + col + row;
+                        body = new CANNON.Body({
+                            mass: 0
+                        });
+                        body.addShape(shape);
 
-                        TweenMax.to(enemy.position, 0.5, {y: 50, delay:row*0.2});
-                        TweenMax.to(enemy.rotation, 0.5, {z: 0});
+                        world.add(body);
 
-                        enemies.group.add(enemy);
+                        enemies.bodies.push(body);
+
+                        mesh = new THREE.Mesh(player.mesh, material);
+                        mesh.scale.set(15, 15, 15);
+                        mesh.position.set(0, -20, 0);
+                        mesh.rotation.z = -1;
+                        mesh.castShadow = true;
+                        mesh.position.x = xPos;
+                        mesh.position.z = zPos - 400;
+
+                        TweenMax.to(mesh.position, 0.5, {
+                            y: 50,
+                            delay: row * 0.2
+                        });
+                        TweenMax.to(mesh.rotation, 0.5, {
+                            z: 0
+                        });
+
+                        TweenMax.from(mesh.position, 0, {
+                            x: mesh.position.x,
+                            yoyo: true,
+                            repeat: -1,
+                            ease: Linear.easeNone
+                        });
+                        TweenMax.to(mesh.position, 2, {
+                            x: mesh.position.x + 170,
+                            yoyo: true,
+                            repeat: -1,
+                            ease: Linear.easeNone
+                        });
+
+                        body.meshID = mesh.id;
+
+                        enemies.group.add(mesh);
+
+                        body.addEventListener("collide", _collideEvent);
 
                     }
 
                 }
 
-                enemies.group.position.z = ``-400;
-                enemies.group.position.x -= offset - (150 / 2);
-
                 scene.add(enemies.group);
+
+            }
+        },
+
+        sounds = {
+            shootSound: null,
+            explosionSound: null,
+            init: function() {
+                var audioListener = new THREE.AudioListener();
+                var audioLoader = new THREE.AudioLoader();
+
+                sounds.shootSound = new THREE.Audio(audioListener);
+                scene.add(sounds.shootSound);
+
+                audioLoader.load('assets/sounds/shoot.wav', function(buffer) {
+                    sounds.shootSound.setBuffer(buffer);
+                    sounds.shootSound.setVolume(0.02);
+                });
+
+                sounds.explosionSound = new THREE.Audio(audioListener);
+                scene.add(sounds.explosionSound);
+
+                audioLoader.load('assets/sounds/explosion-01.wav', function(buffer) {
+                    sounds.explosionSound.setBuffer(buffer);
+                    sounds.explosionSound.setVolume(0.1);
+                });
+
+
+                var ambientSound = new THREE.Audio(audioListener);
+                scene.add(ambientSound);
+
+                audioLoader.load('assets/sounds/ambient-02.wav', function(buffer) {
+                    ambientSound.setBuffer(buffer);
+                    ambientSound.setVolume(0.4);
+                    ambientSound.setLoop(99999);
+                    ambientSound.play();
+                });
 
             }
         },
@@ -272,6 +471,7 @@ var game = (function() {
             ground: new THREE.Object3D(),
             texture: null,
             create: function() {
+
                 var solidGroundGeo = new THREE.PlaneGeometry(10000, 10000, 1, 1);
                 solidGroundGeo.rotateX(-Math.PI / 2);
 
@@ -298,11 +498,11 @@ var game = (function() {
         },
 
         asteroids = {
-            material: new THREE.MeshStandardMaterial({
-                color: colors.gray,
+            material: new THREE.MeshPhongMaterial({
+                color: colors.asteroids.color,
                 shading: THREE.FlatShading,
-                roughness: 0.28,
-                metalness: 0.16
+                emissive: colors.asteroids.emissive,
+                shininess: 0
             }),
             columns: new THREE.Group(),
 
@@ -368,64 +568,6 @@ var game = (function() {
 
             }
 
-
-            // var block1 = new THREE.Group();
-            // var block2 = new THREE.Group();
-            // var block3 = new THREE.Group();
-            //
-            // var blockHelpers = new THREE.Group();
-            //
-            // var parentBlock = new THREE.Group();
-            // parentBlock.position.y = 50;
-            //
-            // var mesh;
-            //
-            // var material = new THREE.MeshStandardMaterial({
-            //     color: colors.purple,
-            //     shading: THREE.FlatShading,
-            //     roughness: 0.28,
-            //     metalness: 0.16
-            // });
-            //
-            // var scale = 1;
-
-            // for (var a = 0; a < 10; a++) {
-            //   mesh = new THREE.Mesh(new THREE.OctahedronGeometry(15, 1), material);
-            //   mesh.position.set(Math.random()*200,Math.random()*200,Math.random()*200);
-            //   scale = Math.random()*1.2;
-            //   mesh.scale.set(scale,scale,scale);
-            //
-            //   TweenMax.from(mesh.position, 0, { x:0, yoyo:true, repeat:-1, ease:Linear.easeNone } );
-            //   TweenMax.to(mesh.position, 1, { x:100, yoyo:true, repeat:-1, ease:Linear.easeNone } );
-            //
-            //   block1.add(mesh);
-            // }
-
-            // block 1
-            // parentBlock.add(block1);
-            // blockHelpers.add( new THREE.BoxHelper( block1 ) );
-
-
-            //var h2 = new THREE.BoxHelper( block2 );
-            // block2.copy(block1);
-            // block2.position.z = 200;
-            // parentBlock.add(block2);
-            // blockHelpers.add( new THREE.BoxHelper( block2 ) );
-
-            // block 3
-            // block3.copy(block1);
-            // block3.position.z = block2.position.z+200;
-            // parentBlock.add(block3);
-            // blockHelpers.add( new THREE.BoxHelper( block3 ) );
-
-
-            //  parentBlock.position.y = 50;
-
-
-            // scene.add(blockHelpers);
-            // scene.add(parentBlock);
-
-            //TweenMax.to(parentBlock.position, 4, { z:1000, ease:Linear.easeNone } );
         };
 
     var _game = {
@@ -465,6 +607,7 @@ var game = (function() {
         level.create();
         player.loadObj();
         cannon.init();
+        sounds.init();
 
         render();
 
@@ -496,10 +639,10 @@ var game = (function() {
 
     function lights() {
         // Ambient light
-        scene.add(new THREE.AmbientLight(colors.ambient, 1));
+        scene.add(new THREE.AmbientLight(colors.ambient));
 
         // Directional Light
-        var light = new THREE.DirectionalLight(0xffffff, 1.2);
+        var light = new THREE.DirectionalLight(0xffffff, 1);
         light.castShadow = true;
         light.shadow.radius = 0.5;
         light.shadow.camera.near = 250;
@@ -528,7 +671,7 @@ var game = (function() {
         scene.add(light);
 
         // Hemisphere Light
-        var hemiLight = new THREE.HemisphereLight(colors.bg, colors.green, 0.3);
+        var hemiLight = new THREE.HemisphereLight(colors.bg, colors.green, 0.2);
         hemiLight.position.set(0, 0, -1);
         scene.add(hemiLight);
 
