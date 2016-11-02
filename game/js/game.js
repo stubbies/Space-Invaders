@@ -1,33 +1,45 @@
 var game = (function() {
 
     var
+    // Statics
         colors = {
-            black: 0x000000,
-            white: 0xffffff,
+            helper: 0xff0000,
             green: 0x0fdb8c,
-            cyan: 0x38FDD9,
-            fog: 0xe4e4e4,
+            fog: {
+                color: 0xe4e4e4,
+                step: 5
+            },
             bg: 0xe4e4e4,
             purple: 0x9c27b0,
-            ambient: 0x808080,
-            gray: 0x8c8c8c,
+            ambient: 0x736a9d,
             player: {
                 color: 0x989898,
                 emissive: 0x1f1f1f
             },
+            enemy: {
+                color: 0x9c27b0,
+                metalness: 0.16,
+                roughness: 1
+            },
             asteroids: {
                 color: 0x686868,
                 emissive: 0x2e2e2e
+            },
+            floor: {
+                emissive: 0x55506f
             }
         },
 
+        // Options
         opts = {
-            helpers: false
+            helpers: false,
+            gui: false
         },
 
         // ThreeJS
         camera, scene, renderer, world,
-        mouse = new THREE.Vector2(),
+        light, fog, ambient,
+        mouse = new THREE.Vector3(),
         raycaster = new THREE.Raycaster(),
 
         WIDTH = window.innerWidth,
@@ -101,7 +113,6 @@ var game = (function() {
 
                 for (var i = 0; i < 4; i++) {
 
-
                     body = new CANNON.Body({
                         mass: 1
                     });
@@ -113,7 +124,6 @@ var game = (function() {
                     body.position.z -= 12 * i;
                     body.velocity.set(gun.shootDirection.x * (Math.random() * 350), Math.random() * 400, gun.shootDirection.z * (Math.random() * 350));
                     world.add(body);
-
 
                     mesh = new THREE.Mesh(explosion.geo, explosion.material);
                     mesh.castShadow = true;
@@ -171,7 +181,7 @@ var game = (function() {
                 }
 
             },
-            fire: function() {
+            fire: function(power) {
 
                 sounds.shootSound.play();
 
@@ -291,7 +301,8 @@ var game = (function() {
                 document.addEventListener("keydown", onKeyDown, false);
                 document.addEventListener("keyup", onKeyUp, false);
                 document.addEventListener("mousemove", onMouseMove, false);
-                document.addEventListener("click", onMouseClick, false);
+                document.addEventListener("mousedown", onMouseDown, false);
+                //document.addEventListener("mouseup", onMouseUp, false);
             },
             fire: function() {
 
@@ -317,14 +328,23 @@ var game = (function() {
             }
         },
 
+        // Enemy space ships
         enemies = {
             bodies: [],
             group: new THREE.Object3D(),
-            formations: [
-                [0, 1, 2, 3],
-                [0.5, 1.5, 2.5],
-                [1.5]
-            ],
+            formation: 'triangle',
+            formations: {
+                triangle: [
+                    [0, 1, 2, 3],
+                    [0.5, 1.5, 2.5],
+                    [1.5]
+                ],
+                square: [
+                    [0, 1, 2],
+                    [0, 1, 2],
+                    [0, 1, 2]
+                ]
+            },
             destroyed: [],
             destroy: function() {
                 if (enemies.destroyed.length) {
@@ -338,17 +358,17 @@ var game = (function() {
 
                 var zPos = 0,
                     xPos = 0,
-                    distance = 150,
-                    offset = (enemies.formations[0].length * distance) / 2,
+                    distance = 160,
+                    offset = (enemies.formations[enemies.formation][0].length * distance) / 2,
                     mesh,
                     body,
                     shape = new CANNON.Box(new CANNON.Vec3(20, 20, 20));
 
                 var material = new THREE.MeshStandardMaterial({
-                    color: colors.purple,
+                    color: colors.enemy.color,
                     shading: THREE.FlatShading,
-                    roughness: 1,
-                    metalness: 0.16
+                    roughness: colors.enemy.roughness,
+                    metalness: colors.enemy.metalness
                 });
 
                 var killedMesh = null;
@@ -364,17 +384,13 @@ var game = (function() {
 
                 }
 
-                var _fireEvent = function() {
-
-                }
-
-                for (var col in enemies.formations) {
+                for (var col in enemies.formations[enemies.formation]) {
 
                     // Set Z position
                     zPos = col * distance;
-                    for (var row in enemies.formations[col]) {
+                    for (var row in enemies.formations[enemies.formation][col]) {
 
-                        xPos = enemies.formations[col][row] * distance;
+                        xPos = enemies.formations[enemies.formation][col][row] * distance;
                         xPos -= offset - (150 / 2);
 
                         body = new CANNON.Body({
@@ -387,11 +403,11 @@ var game = (function() {
                         enemies.bodies.push(body);
 
                         mesh = new THREE.Mesh(player.mesh, material);
-                        mesh.scale.set(15, 15, 15);
+                        mesh.scale.set(18, 18, 18);
                         mesh.position.set(0, -20, 0);
                         mesh.rotation.z = -1;
                         mesh.castShadow = true;
-                        mesh.position.x = xPos;
+                        mesh.position.x = xPos - 100;
                         mesh.position.z = zPos - 400;
 
                         TweenMax.to(mesh.position, 0.5, {
@@ -406,13 +422,14 @@ var game = (function() {
                             x: mesh.position.x,
                             yoyo: true,
                             repeat: -1,
-                            ease: Linear.easeNone
+                            ease: Sine.easeOut
                         });
-                        TweenMax.to(mesh.position, 2, {
-                            x: mesh.position.x + 170,
+                        TweenMax.to(mesh.position, 1.2, {
+                            delay: Math.random(),
+                            x: mesh.position.x + 50,
                             yoyo: true,
                             repeat: -1,
-                            ease: Linear.easeNone
+                            ease: Sine.easeIn
                         });
 
                         body.meshID = mesh.id;
@@ -430,6 +447,7 @@ var game = (function() {
             }
         },
 
+        // Game sounds
         sounds = {
             shootSound: null,
             explosionSound: null,
@@ -453,7 +471,6 @@ var game = (function() {
                     sounds.explosionSound.setVolume(0.1);
                 });
 
-
                 var ambientSound = new THREE.Audio(audioListener);
                 scene.add(ambientSound);
 
@@ -461,14 +478,15 @@ var game = (function() {
                     ambientSound.setBuffer(buffer);
                     ambientSound.setVolume(0.4);
                     ambientSound.setLoop(99999);
-                    ambientSound.play();
+                    //ambientSound.play();
                 });
 
             }
         },
 
+        // Game level
         level = {
-            ground: new THREE.Object3D(),
+            ground: null,
             texture: null,
             create: function() {
 
@@ -480,9 +498,8 @@ var game = (function() {
                 level.texture.repeat.set(45, 45);
 
                 var floorMat = new THREE.MeshLambertMaterial({
-                    color: 0xe4e4e4,
                     map: level.texture,
-                    emissive: 0x9d9d9d
+                    emissive: colors.floor.emissive
                 });
 
                 level.ground = new THREE.Mesh(solidGroundGeo, floorMat);
@@ -498,76 +515,176 @@ var game = (function() {
         },
 
         asteroids = {
-            material: new THREE.MeshPhongMaterial({
-                color: colors.asteroids.color,
-                shading: THREE.FlatShading,
-                emissive: colors.asteroids.emissive,
-                shininess: 0
-            }),
-            columns: new THREE.Group(),
-
-            update: function() {},
-
-            init: function() {
-
-                asteroids.createBlock({
-                    x: 700,
-                    y: 150,
-                    z: -1100
-                });
-                asteroids.createBlock({
-                    x: -700,
-                    y: 150,
-                    z: -1100
-                });
-
-                scene.add(asteroids.columns);
-
-            },
-
-            createBlock: function(pos) {
-
-                var
-                    column = new THREE.Group(),
-                    scale = 1,
-                    mesh,
-                    block;
-
-                for (var i = 1; i < 4; i++) {
-
-                    block = new THREE.Group();
-
-                    for (var a = 0; a < 20; a++) {
-                        mesh = new THREE.Mesh(new THREE.OctahedronGeometry(15, 1), asteroids.material);
-                        mesh.position.set(Math.random() * 300, Math.random() * 100, Math.random() * 500);
-                        scale = Math.random() * 1.5;
-                        mesh.scale.set(scale, scale, scale);
-
-                        TweenMax.from(mesh.position, 0, {
-                            x: 0,
-                            yoyo: true,
-                            repeat: -1,
-                            ease: Linear.easeNone
-                        });
-                        TweenMax.to(mesh.position, Math.floor((Math.random() * 12) + 9), {
-                            x: Math.random() * 70,
-                            yoyo: true,
-                            repeat: -1,
-                            ease: Linear.easeNone
-                        });
-
-                        block.add(mesh);
+            emitters: [],
+            timer: 0,
+            update: function() {
+                asteroids.timer += 0.03;
+                asteroids.emitters.forEach(function(emitter) {
+                    for (var i = 0; i < emitter.children.length; i++) {
+                        // Moving loop
+                        if (emitter.children[i].position.z < emitter.boxLength) {
+                            emitter.children[i].position.z += 5;
+                        } else {
+                            emitter.children[i].position.z -= emitter.boxLength;
+                        }
+                        // Wobble
+                        emitter.children[i].position.y += Math.cos(asteroids.timer + i);
+                        // Rotate
+                        emitter.children[i].rotation.x -= 0.02;
+                        emitter.children[i].rotation.z -= 0.02;
                     }
+                });
+            },
+            createEmitter: function(opts) {
+                var parent = new THREE.Object3D(), mesh;
 
-                    block.position.z += i * 500;
-                    column.add(block);
+                for (var i = 0; i < opts.count; i++) {
+                    mesh = opts.obj.mesh.clone();
+                    // Initial positions
+                    mesh.position.x = randomRange(0, opts.size.x);
+                    mesh.position.y = randomRange(0, opts.size.y);
+                    mesh.position.z = randomRange(0, opts.size.z);
+                    // Sizes
+                    var meshSize = randomRange(opts.obj.size[0], opts.obj.size[1]);
+                    mesh.scale.set(meshSize, meshSize, meshSize);
+                    parent.add(mesh);
                 }
 
-                column.position.set(pos.x, pos.y, pos.z);
-                asteroids.columns.add(column);
+                parent.position.set(opts.pos.x, opts.pos.y, opts.pos.z);
+                parent.boxLength = opts.size.z;
+                parent.boxheight = opts.size.y;
+
+                scene.add(parent);
+                return parent;
+            },
+            init: function() {
+
+                var material = new THREE.MeshPhongMaterial({
+                    color: colors.asteroids.color,
+                    shading: THREE.FlatShading,
+                    emissive: colors.asteroids.emissive,
+                    shininess: 0
+                });
+
+                var mesh = new THREE.Mesh(new THREE.OctahedronGeometry(15, 1), material);
+
+                var emitter1 = asteroids.createEmitter({
+                    size: { x: 100, y: 100, z: 1800 },
+                    pos: { x: -450, y: 100, z: -750 },
+                    count: 70,
+                    obj: { mesh: mesh, size: [0.2, 1]}
+                });
+
+                var emitter2 = asteroids.createEmitter({
+                    size: { x: 100, y: 100, z: 2150 },
+                    pos: { x: 450, y: 100, z: -1000 },
+                    count: 90,
+                    obj: { mesh: mesh, size: [0.2, 1] }
+                });
+
+                if (opts.helpers) {
+                    scene.add(new THREE.BoxHelper(emitter1, colors.helper));
+                    scene.add(new THREE.BoxHelper(emitter2, colors.helper));
+                }
+
+                asteroids.emitters.push(emitter1, emitter2);
+            }
+        },
+
+
+        gui = {
+            show: function() {
+                var gui = new dat.GUI();
+                var params = {
+                    fog_color: colors.fog.color,
+                    fog_step: colors.fog.step,
+                    ambient_color: colors.ambient,
+                    enemy: {
+                        color: colors.enemy.color,
+                        roughness: colors.enemy.roughness,
+                        metalness: colors.enemy.metalness
+                    },
+                    player: {
+                        color: colors.player.color,
+                        emissive: colors.player.emissive
+                    },
+                    floor: {
+                        emissive: colors.floor.emissive
+                    }
+                };
+
+                gui.addColor(params, 'fog_color')
+                    .name('Fog Color')
+                    .onChange(function(val) {
+                        scene.fog.color.setHex(val);
+                    });
+
+                gui.add(params, 'fog_step').min(0).max(15).step(0.1)
+                    .name('Fog Step')
+                    .onChange(function(val) {
+                        scene.fog.density = val;
+                    });
+
+                gui.addColor(params, 'ambient_color')
+                    .name('Ambient')
+                    .onChange(function(val) {
+                        ambient.color.setHex(val);
+                    });
+
+                var enemy_env = gui.addFolder('Enemies');
+
+                enemy_env.addColor(params.enemy, 'color')
+                    .name('Color')
+                    .onChange(function(val) {
+                        if (enemies.group.children.length) {
+                            enemies.group.children.forEach(function(e) {
+                                e.material.color.setHex(val);
+                            });
+                        }
+                    });
+
+                enemy_env.add(params.enemy, 'roughness').min(0).max(1).step(0.05)
+                    .name('Roughness')
+                    .onChange(function(val) {
+                        if (enemies.group.children.length) {
+                            enemies.group.children.forEach(function(e) {
+                                e.material.roughness = val;
+                            });
+                        }
+                    });
+
+                enemy_env.add(params.enemy, 'metalness').min(0).max(1).step(0.05)
+                    .name('Metalness')
+                    .onChange(function(val) {
+                        if (enemies.group.children.length) {
+                            enemies.group.children.forEach(function(e) {
+                                e.material.metalness = val;
+                            });
+                        }
+                    });
+
+                var player_env = gui.addFolder('Player');
+                player_env.addColor(params.player, 'color')
+                    .name('Color')
+                    .onChange(function(val) {
+                        player.spaceshipMesh.material.color.setHex(val);
+                    });
+
+                player_env.addColor(params.player, 'emissive')
+                    .name('Emissive')
+                    .onChange(function(val) {
+                        player.spaceshipMesh.material.emissive.setHex(val);
+                    });
+
+                var floor_env = gui.addFolder('Floor');
+
+                floor_env.addColor(params.floor, 'emissive')
+                    .name('Emissive')
+                    .onChange(function(val) {
+                        level.ground.material.emissive.setHex(val);
+                    });
 
             }
-
         };
 
     var _game = {
@@ -585,7 +702,7 @@ var game = (function() {
         scene = new THREE.Scene();
 
         // Fog
-        scene.fog = new THREE.FogExp2(colors.fog, 5);
+        scene.fog = new THREE.FogExp2(colors.fog.color, colors.fog.step);
 
         lights();
         camera();
@@ -609,12 +726,17 @@ var game = (function() {
         cannon.init();
         sounds.init();
 
+        if (opts.gui) {
+            gui.show();
+        }
+
         render();
 
     }
 
     function render() {
         level.update();
+        asteroids.update();
         cannon.update();
         renderer.render(scene, camera);
         requestAnimationFrame(render);
@@ -639,7 +761,8 @@ var game = (function() {
 
     function lights() {
         // Ambient light
-        scene.add(new THREE.AmbientLight(colors.ambient));
+        ambient = new THREE.AmbientLight(colors.ambient);
+        scene.add(ambient);
 
         // Directional Light
         var light = new THREE.DirectionalLight(0xffffff, 1);
@@ -680,7 +803,7 @@ var game = (function() {
     function camera() {
         camera = new THREE.OrthographicCamera(WIDTH / -2, WIDTH / 2, HEIGHT / 2, HEIGHT / -2, -1000, 10000);
         camera.position.x = 200;
-        camera.position.y = 250;
+        camera.position.y = 190;
         camera.position.z = 200;
         camera.lookAt(scene.position);
     }
@@ -745,6 +868,7 @@ var game = (function() {
 
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        mouse.z = -1;
 
         raycaster.setFromCamera(mouse, camera);
 
@@ -758,10 +882,16 @@ var game = (function() {
 
     }
 
-    function onMouseClick(event) {
+    function onMouseDown(event) {
         player.fire();
     }
 
+    // function onMouseUp(event) {
+    // }
+
+    function randomRange(min, max) {
+        return Math.random() * (max - min) + min;
+    }
 
 
 })();
