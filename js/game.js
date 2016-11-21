@@ -472,7 +472,7 @@ var game = (function() {
                     ambientSound.setBuffer(buffer);
                     ambientSound.setVolume(0.4);
                     ambientSound.setLoop(99999);
-                    //ambientSound.play();
+                    ambientSound.play();
                 });
 
             }
