@@ -2,7 +2,7 @@ var gulp    = require('gulp'),
 webserver   = require('gulp-webserver');
 
 gulp.task('server', function() {
-  gulp.src('game')
+  gulp.src('.')
     .pipe(webserver({
       livereload: false,
       directoryListing: false,
