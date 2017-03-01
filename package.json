@@ -1,5 +1,5 @@
 {
-    "name": "Space Invaders",
+    "name": "Space-Invaders",
     "version": "1.0.0",
     "description": "Three.js Isometric game",
     "main": "index.js",

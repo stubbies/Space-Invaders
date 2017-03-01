@@ -1,0 +1,15 @@
+
+<svg width="29px" height="37px" viewBox="158 246 29 37" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <defs>
+        <rect id="path-1" x="158" y="246" width="29" height="37" rx="14.5"></rect>
+        <mask id="mask-2" maskContentUnits="userSpaceOnUse" maskUnits="objectBoundingBox" x="0" y="0" width="29" height="37" fill="white">
+            <use xlink:href="#path-1"></use>
+        </mask>
+        <path d="M158.008154,260 C158.266967,252.224191 164.654456,246 172.5,246 C172.667344,246 172.834026,246.002833 173,246.008453 L173,260 L158.008154,260 Z" id="path-3"></path>
+        <mask id="mask-4" maskContentUnits="userSpaceOnUse" maskUnits="objectBoundingBox" x="0" y="0" width="14.9918462" height="14" fill="white">
+            <use xlink:href="#path-3"></use>
+        </mask>
+    </defs>
+    <use id="Rectangle-2" stroke="#2F77EB" mask="url(#mask-2)" stroke-width="4" fill="none" xlink:href="#path-1"></use>
+    <use id="Combined-Shape" stroke="#2F77EB" mask="url(#mask-4)" stroke-width="4" fill="#2F77EB" fill-rule="evenodd" xlink:href="#path-3"></use>
+</svg>

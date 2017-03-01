@@ -1,0 +1,85 @@
+html,body {
+    width: 100%;
+    height: 100%;
+    background: #e4e4e4;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: 'Roboto', sans-serif;
+    -ms-overflow-style: scrollbar;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+}
+        
+nav{
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    padding: 15px;
+    background-color: rgba(255, 255, 255, 0.9);
+    display: flex;
+    -webkit-flex-wrap: wrap;
+    flex-wrap: wrap;
+    align-items: center;
+    box-shadow: 0px 12px 20px 0px rgba(0, 0, 0, 0.04);
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.flex{
+    flex: 1;
+}
+
+.flex-right{
+    display: flex;
+    -webkit-justify-content: flex-end;
+    justify-content: flex-end;
+}
+
+.btn {
+    font-size: 15px;
+    font-weight: 400;
+    padding: 16px 20px;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all .4s;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-box-shadow: inset 0 0 0 1px rgba(0,0,0,.16);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.16);
+    color: #080808;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    display: inline-block;
+    margin-left: 15px;
+}
+
+.btn-primary {
+    -webkit-box-shadow: inset 0 0 0 2px #2F77EB;
+    box-shadow: inset 0 0 0 2px #2F77EB;
+    color: #080808;
+}
+
+.icon {
+    display: inline-block;
+    width: 60px;
+    height: 50px;
+    background-repeat: no-repeat;
+    background-position: center center;
+    vertical-align: middle;
+    margin: 0 10px 0 15px;
+}
+
+
+
+.icon-wasd {
+    background-image:url(/assets/wasd.svg);
+}
+
+.icon-mouse {
+    width: 39px;
+    background-image:url(/assets/mouse.svg);
+}
