@@ -36,13 +36,11 @@ var game = (function() {
             gui: false
         },
 
-        // ThreeJS & Math helpers
+        // ThreeJS
         camera, scene, renderer, world,
         ambient,
-        mouse = new THREE.Vector2(),
+        mouse = new THREE.Vector3(),
         raycaster = new THREE.Raycaster(),
-        groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
-        groundHitPoint = new THREE.Vector3(),
 
         WIDTH = window.innerWidth,
         HEIGHT = window.innerHeight,
@@ -51,8 +49,14 @@ var game = (function() {
             timeStep: 1 / 60,
             init: function() {
                 world = new CANNON.World();
-                // SAPBroadphase is significantly faster than NaiveBroadphase
-                world.broadphase = new CANNON.SAPBroadphase(world);
+
+                // High-performance broadphase with safe fallback
+                if (typeof CANNON.SAPBroadphase !== 'undefined') {
+                    world.broadphase = new CANNON.SAPBroadphase(world);
+                } else {
+                    world.broadphase = new CANNON.NaiveBroadphase();
+                }
+
                 world.gravity.set(0, -1000, 0);
                 world.solver.tolerance = 0.001;
                 world.allowSleep = true;
@@ -148,7 +152,6 @@ var game = (function() {
                     item.mesh.position.copy(item.body.position);
                     item.mesh.quaternion.copy(item.body.quaternion);
 
-                    // Remove if expired, fallen through the floor, or travelled too far
                     if (item.isDead || (now - item.birth > 2500) || item.body.position.z < -3000) {
                         world.removeBody(item.body);
                         scene.remove(item.mesh);
@@ -172,6 +175,7 @@ var game = (function() {
                 body.position.y += 50;
 
                 gun.shootDirection = player.spaceship.getWorldDirection(new THREE.Vector3());
+
                 body.velocity.set(
                     gun.shootDirection.x * gun.velocity,
                     gun.shootDirection.y * gun.velocity,
@@ -602,7 +606,7 @@ var game = (function() {
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.setClearColor(colors.bg);
 
-        // Cap pixel ratio to 1.5 to prevent high-DPI GPUs from overheating
+        // Cap pixel ratio to 1.5 to prevent high-DPI GPU overheating
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         renderer.setSize(WIDTH, HEIGHT);
 
@@ -659,7 +663,7 @@ var game = (function() {
         light.shadow.camera.top = 500;
         light.shadow.camera.bottom = -1200;
 
-        // Clean power-of-two shadow resolution (1024 saves huge GPU memory bandwidth)
+        // Clean 1024x1024 shadow resolution (saves huge GPU overhead)
         light.shadow.mapSize.width = 1024;
         light.shadow.mapSize.height = 1024;
         light.shadow.bias = -0.0005;
@@ -733,15 +737,21 @@ var game = (function() {
         }
     }
 
-    // High performance math plane intersection instead of heavy geometry raycasting
+    // Fully working mouse pointing via 3D point vector
     function onMouseMove(event) {
+        event.preventDefault();
+
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        mouse.z = -1;
 
         raycaster.setFromCamera(mouse, camera);
 
-        if (raycaster.ray.intersectPlane(groundPlane, groundHitPoint)) {
-            player.spaceship.lookAt(groundHitPoint.x, player.spaceship.position.y, groundHitPoint.z);
+        if (level.ground) {
+            var intersects = raycaster.intersectObject(level.ground, true);
+            if (intersects.length > 0) {
+                player.spaceship.lookAt(intersects[0].point);
+            }
         }
     }
 
